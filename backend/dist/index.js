@@ -2,51 +2,29 @@ import { WebSocketServer, WebSocket } from 'ws';
 const wss = new WebSocketServer({ port: 8080 });
 let senderSocket = null;
 let receiverSocket = null;
-wss.on('connection', function connection(ws) {
-    ws.on('error', console.error);
-    ws.on('message', function message(data) {
-        const parsedMessage = JSON.parse(data);
-        if (parsedMessage.type == 'sender') {
+wss.on('connection', (ws) => {
+    ws.on('message', (data) => {
+        const msg = JSON.parse(data);
+        if (msg.type === 'sender') {
             senderSocket = ws;
+            return;
         }
-        else if (parsedMessage.type == 'receiver') {
-            console.log("receiver is received");
+        if (msg.type === 'receiver') {
             receiverSocket = ws;
+            return;
         }
-        else if (parsedMessage.type == 'createOffer') {
-            if (ws != senderSocket) {
-                return;
-            }
-            console.log(parsedMessage);
-            receiverSocket?.send(JSON.stringify({
-                type: "createOffer",
-                sdp: parsedMessage.sdp
-            }));
+        if (msg.type === 'createOffer' && ws === senderSocket) {
+            receiverSocket?.send(JSON.stringify(msg));
         }
-        else if (parsedMessage.type == 'createAnswer') {
-            if (ws != receiverSocket) {
-                return;
-            }
-            ;
-            senderSocket?.send(JSON.stringify({
-                type: "createAnswer",
-                sdp: parsedMessage.sdp
-            }));
+        if (msg.type === 'createAnswer' && ws === receiverSocket) {
+            senderSocket?.send(JSON.stringify(msg));
         }
-        else if (parsedMessage.type == 'iceCandidate') {
+        if (msg.type === 'iceCandidate') {
             if (ws === senderSocket) {
-                console.log("the sender ice candidate is: " + parsedMessage.candidate);
-                receiverSocket?.send(JSON.stringify({
-                    type: "iceCandidate",
-                    candidate: parsedMessage.candidate
-                }));
+                receiverSocket?.send(JSON.stringify(msg));
             }
             else if (ws === receiverSocket) {
-                console.log("the receiver ice candidate is: " + parsedMessage.candidate);
-                senderSocket?.send(JSON.stringify({
-                    type: "iceCandidate",
-                    candidate: parsedMessage.candidate
-                }));
+                senderSocket?.send(JSON.stringify(msg));
             }
         }
     });

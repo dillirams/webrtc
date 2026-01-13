@@ -1,75 +1,58 @@
-import { useEffect, useState } from "react"
+export default function SenderComponent() {
+  let pc: RTCPeerConnection;
+  let iceQueue: RTCIceCandidateInit[] = [];
 
-export default function SenderComponent(){
+  const socket = new WebSocket("ws://localhost:8080");
 
-    const [socket, setSocket]=useState<WebSocket|null>(null);
-  
-    
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ type: "sender" }));
+  };
 
-    useEffect(()=>{
-        const wss=new WebSocket("ws://localhost:8080");
-        setSocket(wss)
-        wss.onopen=()=>{
-            wss.send(JSON.stringify({
-                type:"sender"
-            }))
+  async function start() {
+    pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+
+    pc.onicecandidate = e => {
+      if (e.candidate) {
+        socket.send(JSON.stringify({
+          type: "iceCandidate",
+          candidate: e.candidate
+        }));
+      }
+    };
+
+    socket.onmessage = async (event) => {
+      const msg = JSON.parse(event.data);
+
+      if (msg.type === "createAnswer") {
+        await pc.setRemoteDescription(msg.sdp);
+
+        // Flush queued ICE
+        iceQueue.forEach(c => pc.addIceCandidate(c));
+        iceQueue = [];
+      }
+
+      if (msg.type === "iceCandidate") {
+        if (pc.remoteDescription) {
+          pc.addIceCandidate(msg.candidate);
+        } else {
+          iceQueue.push(msg.candidate);
         }
-    },[])
+      }
+    };
 
-    async function initiateConnection() {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-    const pc1= new RTCPeerConnection();
+    socket.send(JSON.stringify({
+      type: "createOffer",
+      sdp: offer
+    }));
+  }
 
-    if(!socket){
-        return;
-    }
-
-    socket.onmessage=async(message:any)=>{
-        const parsedMessage=JSON.parse(message);
-        if(parsedMessage.type=='createAnswer'){
-            await pc1.setRemoteDescription(parsedMessage.sdp);
-        }else if(parsedMessage.type=='iceCandidate'){
-            pc1.addIceCandidate(parsedMessage.candidate)
-        }
-    }
-
-    pc1.onicecandidate=(event)=>{
-        if(event.candidate){
-            console.log("on ice candidate")
-            socket?.send(JSON.stringify({
-                type:"iceCandidate",
-                candidate:event.candidate
-            }))
-        }
-    }
-
-    pc1.onnegotiationneeded=async()=>{
-        const offer= await pc1.createOffer();
-        pc1.setLocalDescription(offer);
-        socket?.send(JSON.stringify({
-            type:"createOffer",
-            sdp:pc1.localDescription
-        }))
-    }
-
-    getVoicestreamData(pc1)
-        
-    }
-
-    const getVoicestreamData=async(pc:RTCPeerConnection)=>{
-        const stream=await navigator.mediaDevices.getUserMedia({audio:true, video:false});
-        stream.getAudioTracks().forEach(track=>{
-            pc.addTrack(track, stream)
-        })
-    
-
-    }
-
-    
-
-    return <div>
-        
-
-        <button className="border rounded-xl p-3 bg-indigo-500 text-white font-xl font-bold hover:bg-indigo-700" onClick={initiateConnection}>click</button>
-    </div>
+  return <button className="px-3 py-1 border rounded-lg bg-indigo-500 text-white font-bold hover:bg-indigo-700" onClick={start}>Start Voice</button>;
 }
