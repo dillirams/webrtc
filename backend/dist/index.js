@@ -10,12 +10,14 @@ wss.on('connection', function connection(ws) {
             senderSocket = ws;
         }
         else if (parsedMessage.type == 'receiver') {
+            console.log("receiver is received");
             receiverSocket = ws;
         }
         else if (parsedMessage.type == 'createOffer') {
             if (ws != senderSocket) {
                 return;
             }
+            console.log(parsedMessage);
             receiverSocket?.send(JSON.stringify({
                 type: "createOffer",
                 sdp: parsedMessage.sdp
@@ -33,12 +35,14 @@ wss.on('connection', function connection(ws) {
         }
         else if (parsedMessage.type == 'iceCandidate') {
             if (ws === senderSocket) {
+                console.log("the sender ice candidate is: " + parsedMessage.candidate);
                 receiverSocket?.send(JSON.stringify({
                     type: "iceCandidate",
                     candidate: parsedMessage.candidate
                 }));
             }
             else if (ws === receiverSocket) {
+                console.log("the receiver ice candidate is: " + parsedMessage.candidate);
                 senderSocket?.send(JSON.stringify({
                     type: "iceCandidate",
                     candidate: parsedMessage.candidate

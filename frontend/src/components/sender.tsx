@@ -35,6 +35,7 @@ export default function SenderComponent(){
 
     pc1.onicecandidate=(event)=>{
         if(event.candidate){
+            console.log("on ice candidate")
             socket?.send(JSON.stringify({
                 type:"iceCandidate",
                 candidate:event.candidate
